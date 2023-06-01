@@ -213,7 +213,7 @@
                                           :stacktrace? false
                                           :command-frequency? false}}]))
 
-(defn report-result [msg _ options results frequencies]
+(defn report-result [msg specification options results frequencies]
   (let [result (:result results)
         smallest (get-in results [:shrunk :result])]
     (when (get-in options [:report :command-frequency?] false)
@@ -255,7 +255,13 @@
                                    (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
                                                  "        same seed does not guarantee the same result.")))))
                     :expected (symbol "all executions to match specification"),
-                    :actual (symbol "the above execution did not match the specification")}))
+                    :actual (symbol "the above execution did not match the specification")
+                    :stateful-check {:failures {:first (failure-exception-data result)
+                                                :smallest (failure-exception-data smallest)}
+                                     :frequencies frequencies
+                                     :message msg
+                                     :options options
+                                     :specification specification}}))
     (true? result)))
 
 (defmethod t/assert-expr 'specification-correct?

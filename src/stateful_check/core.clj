@@ -1,5 +1,6 @@
 (ns stateful-check.core
-  (:require [clojure.pprint :refer [print-table]]
+  (:require [clojure.pprint :as pp]
+            [clojure.string :as str]
             [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.properties :refer [for-all]]
@@ -112,6 +113,22 @@
                    (cleanup))))))))
      true)))
 
+(defn- print-messages [handle messages]
+  (doseq [{:keys [message events]} (get messages handle)]
+    ;; TODO: Only print this message when there are no events?
+    (if-not (seq events)
+      (println "   " message)
+      (doseq [{:keys [message] :as event} events]
+        (when message
+          (println "     " message))
+        (doseq [detail [:expected :actual]]
+          (when (contains? event detail)
+            (->> (str/split (with-out-str (pp/pprint (get event detail))) #"\n")
+                 (remove str/blank?)
+                 (str/join "\n             ")
+                 (str (format "%12s: " (name detail)))
+                 (println))))))))
+
 (defn- print-sequence [commands stacktrace? messages]
   (doseq [[[handle cmd & args] trace] commands]
     (printf "  %s = %s %s\n"
@@ -128,9 +145,7 @@
                                            (java.io.PrintWriter. *out*)))
                        (.toString ^Object (:exception trace)))
                      trace))))
-    (doseq [message (get messages handle)
-            line    (.split ^String message "\n")]
-      (printf "    %s\n" line))))
+    (print-messages handle messages)))
 
 (defn print-execution
   ([{:keys [sequential parallel messages]} stacktrace?]
@@ -141,8 +156,7 @@
    (doseq [[i thread] (map vector (range) parallel)]
      (printf "\nThread %s:\n" (g/index->letter i))
      (print-sequence thread stacktrace? messages))
-   (doseq [message (get messages nil)]
-     (println message))))
+   (print-messages nil messages)))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
@@ -218,11 +232,11 @@
         smallest (get-in results [:shrunk :result])]
     (when (get-in options [:report :command-frequency?] false)
       (print "Command execution counts:")
-      (print-table (->> frequencies
-                        (sort-by val)
-                        reverse ;; big numbers on top
-                        (map #(hash-map :command (key %)
-                                        :count (val %))))))
+      (pp/print-table (->> frequencies
+                           (sort-by val)
+                           reverse ;; big numbers on top
+                           (map #(hash-map :command (key %)
+                                           :count (val %))))))
     (if (true? result)
       (t/do-report {:type :pass,
                     :message msg,

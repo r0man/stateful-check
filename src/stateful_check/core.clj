@@ -12,11 +12,15 @@
 (def default-max-tries 1)
 (def default-timeout-ms 0)
 
-(defn- make-failure-exception [sequential-trace parallel-trace messages]
+(defn- make-failure-exception
+  [specification options sequential-trace parallel-trace messages environment]
   (ex-info "Generative test failed."
-           {:sequential sequential-trace
+           {:environment environment
+            :messages messages
+            :options options
             :parallel parallel-trace
-            :messages messages}))
+            :sequential sequential-trace
+            :specification specification}))
 
 (defn failure-exception? [ex]
   (and (instance? clojure.lang.ExceptionInfo ex)
@@ -42,7 +46,12 @@
         init-state    (if (:setup spec)
                         (init-state-fn (get bindings g/setup-var))
                         (init-state-fn))
-        messages      (map #(r/failure-message % init-state bindings) interleavings)]
+        messages      (mapv #(r/failure-message % init-state bindings) interleavings)]
+    ;; TODO: I added this, because I think we need to cleanup here as well.
+    (when-let [cleanup (:cleanup spec)]
+      (if (:setup spec)
+        (cleanup init-state)
+        (cleanup)))
     (when (every? some? messages) ;; if all paths failed
       (->> messages
            (map (fn [[handle message]]
@@ -57,7 +66,35 @@
        (instance? CaughtException result) result
        (= last-str result-str) result-str
        :else (str result-str
-                  "\n    >> object may have been mutated later into " last-str " <<\n"))]))
+                  "\n    >> object may have been mutated later into " last-str " <<\n"))
+     result]))
+
+(defn- failure-env
+  "Return a map mapping from a command handle to a set of messages
+  indicating failures that occurred during all the interleavings of a
+  command set."
+  [spec commands results bindings]
+  (let [sequential [(mapv combine-cmds-with-traces
+                          (:sequential commands)
+                          (:sequential results)
+                          (:sequential-strings results))]
+        parallel (mapv (partial mapv combine-cmds-with-traces)
+                       (:parallel commands)
+                       (:parallel results)
+                       (:parallel-strings results))
+        init-state-fn (or (:initial-state spec)
+                          (constantly nil))
+        init-state    (if (:setup spec)
+                        (init-state-fn (get bindings g/setup-var))
+                        (init-state-fn))
+        environments (into {} (mapcat (fn [group]
+                                        (mapcat #(r/failure-env % init-state bindings) group))
+                                   [sequential parallel]))]
+    (when-let [cleanup (:cleanup spec)]
+      (if (:setup spec)
+        (cleanup init-state)
+        (cleanup)))
+    environments))
 
 (def ^:dynamic *run-commands* nil)
 
@@ -84,7 +121,8 @@
                               {})
                    results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
                (when-let [messages (failure-messages spec commands results bindings)]
-                 (throw (make-failure-exception (mapv combine-cmds-with-traces
+                 (throw (make-failure-exception spec options
+                                                (mapv combine-cmds-with-traces
                                                       (:sequential commands)
                                                       (:sequential results)
                                                       (:sequential-strings results))
@@ -92,11 +130,13 @@
                                                       (:parallel commands)
                                                       (:parallel results)
                                                       (:parallel-strings results))
-                                                messages))))
+                                                messages
+                                                (failure-env spec commands results bindings)))))
              (catch clojure.lang.ExceptionInfo ex
                (if (= (.getMessage ex) "Timed out")
                  (let [results (ex-data ex)]
-                   (throw (make-failure-exception (mapv combine-cmds-with-traces
+                   (throw (make-failure-exception spec options
+                                                  (mapv combine-cmds-with-traces
                                                         (:sequential commands)
                                                         (:sequential results)
                                                         (:sequential-strings results))
@@ -104,7 +144,8 @@
                                                         (:parallel commands)
                                                         (:parallel results)
                                                         (:parallel-strings results))
-                                                  {nil "Test timed out."})))
+                                                  {nil "Test timed out."}
+                                                  {})))
                  (throw ex)))
              (finally
                (when-let [cleanup (:cleanup spec)]
@@ -148,9 +189,10 @@
     (print-messages handle messages)))
 
 (defn print-execution
-  ([{:keys [sequential parallel messages]} stacktrace?]
-   (print-execution sequential parallel stacktrace? messages))
-  ([sequential parallel stacktrace? messages]
+  ([{:keys [environment sequential parallel messages]} stacktrace?]
+   (print-execution environment sequential parallel stacktrace? messages))
+  ([environment sequential parallel stacktrace? messages]
+   ;; (println (keys environment))
    (printf "Sequential prefix:\n")
    (print-sequence sequential stacktrace? messages)
    (doseq [[i thread] (map vector (range) parallel)]
@@ -268,6 +310,7 @@
                                  (when (> (get-in options [:gen :threads] 0) 1)
                                    (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
                                                  "        same seed does not guarantee the same result.")))))
+                    :stateful-check (assoc results :frequencies frequencies)
                     :expected (symbol "all executions to match specification"),
                     :actual (symbol "the above execution did not match the specification")}))
     (true? result)))

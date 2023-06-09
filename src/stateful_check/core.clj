@@ -44,7 +44,8 @@
        (instance? CaughtException result) result
        (= last-str result-str) result-str
        :else (str result-str
-                  "\n    >> object may have been mutated later into " last-str " <<\n"))]))
+                  "\n    >> object may have been mutated later into " last-str " <<\n"))
+     result]))
 
 (defn- failure-env
   "Return a map mapping from a command handle to a set of messages

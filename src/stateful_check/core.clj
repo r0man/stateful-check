@@ -46,6 +46,29 @@
        :else (str result-str
                   "\n    >> object may have been mutated later into " last-str " <<\n"))]))
 
+(defn- failure-env
+  "Return a map mapping from a command handle to a set of messages
+  indicating failures that occurred during all the interleavings of a
+  command set."
+  [spec commands results bindings]
+  (let [sequential [(mapv combine-cmds-with-traces
+                          (:sequential commands)
+                          (:sequential results)
+                          (:sequential-strings results))]
+        parallel (mapv (partial mapv combine-cmds-with-traces)
+                       (:parallel commands)
+                       (:parallel results)
+                       (:parallel-strings results))
+        init-state-fn (or (:initial-state spec)
+                          (constantly nil))
+        init-state    (if (:setup spec)
+                        (init-state-fn (get bindings g/setup-var))
+                        (init-state-fn))
+        environments (into {} (mapcat (fn [group]
+                                        (mapcat #(r/failure-env % init-state bindings) group))
+                                      [sequential parallel]))]
+    environments))
+
 (def ^:dynamic *run-commands* nil)
 
 (defn spec->property
@@ -64,18 +87,19 @@
                        (swap! *run-commands* #(merge-with + %1 %2)))))
               (reduce (fn [result try]
                         (let [setup-result (when-let [setup setup-fn]
-                                             (setup))]
+                                             (setup))
+                              bindings (if setup-fn
+                                         {g/setup-var setup-result}
+                                         {})]
                           (try
-                            (let [bindings (if setup-fn
-                                             {g/setup-var setup-result}
-                                             {})
-                                  results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
+                            (let [results (r/runners->results runners bindings (get-in options [:run :timeout-ms] default-timeout-ms))]
                               (if-let [messages (failure-messages spec commands results bindings)]
                                 (reduced (reify Result
                                            (pass? [_]
                                              false)
                                            (result-data [_]
                                              {:commands commands
+                                              :environment (failure-env spec commands results bindings)
                                               :id (UUID/randomUUID)
                                               :message "Generative test failed."
                                               :messages messages
@@ -99,6 +123,7 @@
                                              (let [results (ex-data ex)]
                                                {:commands commands
                                                 :id (UUID/randomUUID)
+                                                :environment (failure-env spec commands results bindings)
                                                 :message "Generative test timed out."
                                                 :messages {nil "Test timed out."}
                                                 :options options

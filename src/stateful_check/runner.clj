@@ -91,3 +91,25 @@
                           next-state
                           (assoc bindings handle result)]))))
                  [nil state bindings] cmds-and-traces)))
+
+(defn failure-env
+  "Return a map of {handle frame} representing the execution frame for
+  each handle."
+  [cmds-and-traces state bindings]
+  (first (reduce (fn [[env state bindings] [index [[handle cmd-obj & args] _result-str result]]]
+                   (let [real-args (sv/get-real-value args bindings)
+                         next-bindings (assoc bindings handle result)
+                         frame {:arguments {:symbolic (vec args) :real (vec real-args)}
+                                :bindings {:before bindings :after next-bindings}
+                                :command cmd-obj
+                                :handle handle
+                                :index index
+                                :result result
+                                :state {:before state}}]
+                     ;; TODO: This is using the real state, what about the next state?
+                     (let [next-state (u/make-next-state cmd-obj state real-args result)
+                           frame (assoc-in frame [:state :after] next-state)
+                           failure (u/check-postcondition cmd-obj state next-state real-args result)]
+                       [(assoc env handle (cond-> frame failure (assoc :failure failure)))
+                        next-state next-bindings])))
+                 [{} state bindings] (map-indexed vector cmds-and-traces))))

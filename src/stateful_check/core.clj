@@ -1,13 +1,13 @@
 (ns stateful-check.core
-  (:require [clojure.pprint :as pp]
-            [clojure.string :as str]
-            [clojure.test :as t]
+  (:require [clojure.test :as t]
             [clojure.test.check :refer [quick-check]]
             [clojure.test.check.properties :refer [for-all]]
             [clojure.test.check.results :refer [Result]]
             [stateful-check.generator :as g]
+            [stateful-check.report :as report]
             [stateful-check.runner :as r])
-  (:import [stateful_check.runner CaughtException]))
+  (:import [java.util UUID]
+           [stateful_check.runner CaughtException]))
 
 (def default-num-tests 200)
 (def default-max-tries 1)
@@ -33,7 +33,7 @@
     (when (every? some? messages) ;; if all paths failed
       (->> messages
            (map (fn [[handle message]]
-                    {handle #{message}}))
+                  {handle #{message}}))
            (apply merge-with into)))))
 
 (defn combine-cmds-with-traces [command result result-str]
@@ -76,6 +76,7 @@
                                              false)
                                            (result-data [_]
                                              {:commands commands
+                                              :id (UUID/randomUUID)
                                               :message "Generative test failed."
                                               :messages messages
                                               :options options
@@ -97,7 +98,8 @@
                                            (if (= (.getMessage ex) "Timed out")
                                              (let [results (ex-data ex)]
                                                {:commands commands
-                                                :message "Generative test failed."
+                                                :id (UUID/randomUUID)
+                                                :message "Generative test timed out."
                                                 :messages {nil "Test timed out."}
                                                 :options options
                                                 :parallel (mapv (partial mapv combine-cmds-with-traces)
@@ -112,7 +114,8 @@
                                              ;; TODO: Not sure if we should re-throw this exception and let test.check handle it.
                                              {:clojure.test.check.properties/error ex
                                               :commands commands
-                                              :message "Generative test has thrown an exception."
+                                              :id (UUID/randomUUID)
+                                              :message "Generative test threw an exception."
                                               :options options
                                               :specification spec})))))
                             (finally
@@ -125,54 +128,10 @@
                           true)
                         (result-data [_]
                           {:commands commands
+                           :id (UUID/randomUUID)
                            :options options
                            :specification spec}))
                       (range (get-in options [:run :max-tries] default-max-tries)))))))
-
-(defn- print-messages [handle messages]
-  (doseq [{:keys [message events]} (get messages handle)]
-    ;; TODO: Only print this message when there are no events?
-    (if-not (seq events)
-      (println "   " message)
-      (doseq [{:keys [message] :as event} events]
-        (when message
-          (println "     " message))
-        (doseq [detail [:expected :actual]]
-          (when (contains? event detail)
-            (->> (str/split (with-out-str (pp/pprint (get event detail))) #"\n")
-                 (remove str/blank?)
-                 (str/join "\n             ")
-                 (str (format "%12s: " (name detail)))
-                 (println))))))))
-
-(defn- print-sequence [commands stacktrace? messages]
-  (doseq [[[handle cmd & args] trace] commands]
-    (printf "  %s = %s %s\n"
-            (pr-str handle)
-            (cons (:name cmd)
-                  args)
-            (if (= ::r/unevaluated trace)
-              ""
-              (str " = "
-                   (if (instance? CaughtException trace)
-                     (if stacktrace?
-                       (with-out-str
-                         (.printStackTrace ^Throwable (:exception trace)
-                                           (java.io.PrintWriter. *out*)))
-                       (.toString ^Object (:exception trace)))
-                     trace))))
-    (print-messages handle messages)))
-
-(defn print-execution
-  ([{:keys [sequential parallel messages]} stacktrace?]
-   (print-execution sequential parallel stacktrace? messages))
-  ([sequential parallel stacktrace? messages]
-   (printf "Sequential prefix:\n")
-   (print-sequence sequential stacktrace? messages)
-   (doseq [[i thread] (map vector (range) parallel)]
-     (printf "\nThread %s:\n" (g/index->letter i))
-     (print-sequence thread stacktrace? messages))
-   (print-messages nil messages)))
 
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
@@ -182,6 +141,7 @@
   ([specification options]
    (quick-check (get-in options [:run :num-tests] default-num-tests)
                 (spec->property specification options)
+                :reporter-fn (get-in options [:report :reporter-fn] identity)
                 :seed (get-in options [:run :seed] (System/currentTimeMillis))
                 :max-size (get-in options [:gen :max-size] g/default-max-size))))
 
@@ -243,62 +203,14 @@
                                           :stacktrace? false
                                           :command-frequency? false}}]))
 
-(defn report-result [msg _ options results frequencies]
-  (let [result (:result-data results)
-        smallest (get-in results [:shrunk :result-data])]
-    (when (get-in options [:report :command-frequency?] false)
-      (print "Command execution counts:")
-      (pp/print-table (->> frequencies
-                           (sort-by val)
-                           reverse ;; big numbers on top
-                           (map #(hash-map :command (key %)
-                                           :count (val %))))))
-    (cond
-      (:pass? results)
-      (t/do-report {:type :pass,
-                    :message msg,
-                    :expected true,
-                    :actual true})
-      (:clojure.test.check.properties/error result)
-      (t/do-report {:type :error
-                    :fault true
-                    :expected nil
-                    :actual (:clojure.test.check.properties/error result)
-                    :message (.getMessage (:clojure.test.check.properties/error result))})
-      :else
-      (t/do-report {:type :fail
-                    :message (with-out-str
-                               (binding [*out* (java.io.PrintWriter. *out*)]
-                                 (when msg
-                                   (println msg))
-                                 (when (get-in options [:report :first-case?] false)
-                                   (println "  First failing test case")
-                                   (println "  -----------------------------")
-                                   (if (contains? result :sequential)
-                                     (print-execution result (get-in options [:report :stacktrace?] false))
-                                     (.printStackTrace ^Throwable result
-                                                       ^java.io.PrintWriter *out*))
-                                   (println)
-                                   (println "  Smallest case after shrinking")
-                                   (println "  -----------------------------"))
-                                 (if (contains? smallest :sequential)
-                                   (print-execution smallest (get-in options [:report :stacktrace?] false))
-                                   (.printStackTrace ^Throwable smallest
-                                                     ^java.io.PrintWriter *out*))
-                                 (println)
-                                 (println "Seed:" (:seed results))
-                                 (when (> (get-in options [:gen :threads] 0) 1)
-                                   (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
-                                                 "        same seed does not guarantee the same result.")))))
-                    :expected (symbol "all executions to match specification"),
-                    :actual (symbol "the above execution did not match the specification")}))
-    (:pass? results)))
-
 (defmethod t/assert-expr 'specification-correct?
   [msg [_ specification options]]
   `(let [spec# ~specification
          options# ~options
+         options# (if (contains? (:report options#) :reporter-fn)
+                    options#
+                    (assoc-in options# [:report :reporter-fn] report/default-reporter-fn))
          [results# frequencies#] (binding [*run-commands* (atom {})]
                                    [(run-specification spec# options#)
                                     @*run-commands*])]
-     (report-result ~msg spec# options# results# frequencies#)))
+     (report/report-result ~msg results# frequencies#)))

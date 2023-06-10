@@ -109,22 +109,24 @@
       (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
                     "        same seed does not guarantee the same result.")))))
 
-(defn- print-results
+(defn print-results
   "Print the summary of the Stateful Check results."
-  [msg results]
-  (let [error (-> results :result-data :clojure.test.check.properties/error)
-        options (-> results :result-data :options)]
-    (when msg
-      (println msg))
-    (when (instance? Throwable error)
-      (println (.getMessage ^Throwable error)))
-    (when (-> results :result-data :sequential seq)
-      (when (get-in options [:report :first-case?] false)
-        (print-first-failing-case results)
-        (println))
-      (print-smallest-failing-case (:shrunk results))
-      (println)
-      (print-summary results))))
+  ([results]
+   (print-results nil results))
+  ([msg results]
+   (let [error (-> results :result-data :clojure.test.check.properties/error)
+         options (-> results :result-data :options)]
+     (when msg
+       (println msg))
+     (when (instance? Throwable error)
+       (println (.getMessage ^Throwable error)))
+     (when (-> results :result-data :sequential seq)
+       (when (get-in options [:report :first-case?] false)
+         (print-first-failing-case results)
+         (println))
+       (print-smallest-failing-case (:shrunk results))
+       (println)
+       (print-summary results)))))
 
 (defn default-reporter-fn
   "Default function passed as the :reporter-fn to clojure.test.check/quick-check.

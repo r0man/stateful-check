@@ -113,3 +113,58 @@
                        [(assoc env handle (cond-> frame failure (assoc :failure failure)))
                         next-state next-bindings])))
                  [{} state bindings] (map-indexed vector cmds-and-traces))))
+
+(defn failure-env
+  "Return a map of {handle frame} representing the execution frame for
+  each handle."
+  [cmds-and-traces state bindings]
+  (first (reduce (fn [[env state bindings] [index [[handle cmd-obj & args] _result-str result]]]
+                   (let [symbolic-result handle ;; TODO: Is this right?
+                         real-args (sv/get-real-value args (:real bindings))
+                         next-bindings (-> (assoc-in bindings [:real handle] result)
+                                           (assoc-in [:symbolic handle] symbolic-result))
+                         next-state {:real (u/make-next-state cmd-obj (:real state) real-args result)
+                                     :symbolic (u/make-next-state cmd-obj (:symbolic state) args symbolic-result)}
+                         failure {:real (u/check-postcondition cmd-obj (:real state) (:real next-state) real-args result)
+                                  :symbolic (u/check-postcondition cmd-obj (:symbolic state) (:symbolic next-state) args symbolic-result)}
+                         frame (cond-> {:arguments {:symbolic (vec args) :real (vec real-args)}
+                                        :bindings {:before bindings :after next-bindings}
+                                        :command cmd-obj
+                                        :handle handle
+                                        :index index
+                                        :result {:real result :symbolic symbolic-result}
+                                        :state {:before state :after next-state}}
+                                 (:real failure)
+                                 (assoc-in [:failure :real] (:real failure))
+                                 (:symbolic failure)
+                                 (assoc-in [:failure :symbolic] (:symbolic failure)))]
+                     [(assoc env handle frame) next-state next-bindings]))
+                 [{} state bindings] (map-indexed vector cmds-and-traces))))
+
+
+(defn failure-env
+  "Return a map of {handle frame} representing the execution frame for
+  each handle."
+  [cmds-and-traces state bindings & [thread]]
+  (first (reduce (fn [[env state bindings] [index [[handle cmd-obj & args] _result-str result]]]
+                   (let [real-args (sv/get-real-value args bindings)
+                         next-bindings (assoc bindings handle result)
+                         next-state {:real (u/make-next-state cmd-obj (:real state) real-args result)
+                                     :symbolic (u/make-next-state cmd-obj (:symbolic state) args handle)}
+                         failure (u/check-postcondition cmd-obj (:real state) (:real next-state) real-args result)
+                         frame (cond-> {;; :arguments {:symbolic (vec args) :real (vec real-args)}
+                                        :arguments (mapv (fn [index symbolic real]
+                                                           {:index index
+                                                            :real real
+                                                            :symbolic symbolic})
+                                                         (range (count args)) args real-args)
+                                        :bindings {:before bindings :after next-bindings}
+                                        :command cmd-obj
+                                        :handle handle
+                                        :index index
+                                        :result result
+                                        :state {:before state :after next-state}}
+                                 thread (assoc :thread thread)
+                                 (:real failure) (assoc :failure failure))]
+                     [(assoc env handle frame) next-state next-bindings]))
+                 [{} state bindings] (map-indexed vector cmds-and-traces))))

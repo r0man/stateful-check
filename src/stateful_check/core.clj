@@ -75,6 +75,35 @@
                      (-> last-env :bindings :after)))
                   parallel))))
 
+(defn- failure-env
+  "Return a map mapping from a command handle to a set of messages
+  indicating failures that occurred during all the interleavings of a
+  command set."
+  [spec commands results bindings]
+  (let [sequential (mapv combine-cmds-with-traces
+                         (:sequential commands)
+                         (:sequential results)
+                         (:sequential-strings results))
+        parallel (mapv (partial mapv combine-cmds-with-traces)
+                       (:parallel commands)
+                       (:parallel results)
+                       (:parallel-strings results))
+        init-state-fn (or (:initial-state spec)
+                          (constantly nil))
+        init-state (if (:setup spec)
+                     (init-state-fn (get bindings g/setup-var))
+                     (init-state-fn))
+        sequential-env (r/failure-env sequential {:real init-state :symbolic init-state} bindings)
+        last-env (get sequential-env (ffirst (last sequential)))]
+    (into sequential-env
+          (mapcat (fn [[thread sequential]]
+                    (r/failure-env
+                     sequential
+                     (-> last-env :state :after)
+                     (-> last-env :bindings :after)
+                     thread))
+                  (map-indexed vector parallel)))))
+
 (def ^:dynamic *run-commands* nil)
 
 (defn spec->property

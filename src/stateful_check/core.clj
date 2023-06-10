@@ -44,7 +44,8 @@
        (instance? CaughtException result) result
        (= last-str result-str) result-str
        :else (str result-str
-                  "\n    >> object may have been mutated later into " last-str " <<\n"))]))
+                  "\n    >> object may have been mutated later into " last-str " <<\n"))
+     result]))
 
 (def ^:dynamic *run-commands* nil)
 

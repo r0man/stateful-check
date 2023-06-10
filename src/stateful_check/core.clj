@@ -295,7 +295,8 @@
                                    (println (str "  Note: Test cases with multiple threads are not deterministic, so using the\n"
                                                  "        same seed does not guarantee the same result.")))))
                     :expected (symbol "all executions to match specification"),
-                    :actual (symbol "the above execution did not match the specification")}))
+                    :actual (symbol "the above execution did not match the specification")
+                    :stateful-check results}))
     (:pass? results)))
 
 (defmethod t/assert-expr 'specification-correct?

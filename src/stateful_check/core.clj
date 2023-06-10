@@ -137,14 +137,16 @@
 (defn run-specification
   "Run a specification. This will convert the spec into a property and
   run it using clojure.test.check/quick-check. This function then
-  returns the full quick-check result."
+  returns the full quick-check result with an :id entry that uniquely
+  identifies the run."
   ([specification] (run-specification specification nil))
   ([specification options]
-   (quick-check (get-in options [:run :num-tests] default-num-tests)
-                (spec->property specification options)
-                :reporter-fn (get-in options [:report :reporter-fn] identity)
-                :seed (get-in options [:run :seed] (System/currentTimeMillis))
-                :max-size (get-in options [:gen :max-size] g/default-max-size))))
+   (-> (quick-check (get-in options [:run :num-tests] default-num-tests)
+                    (spec->property specification options)
+                    :reporter-fn (get-in options [:report :reporter-fn] identity)
+                    :seed (get-in options [:run :seed] (System/currentTimeMillis))
+                    :max-size (get-in options [:gen :max-size] g/default-max-size))
+       (assoc :id (UUID/randomUUID)))))
 
 (defn specification-correct?
   "Test whether or not the specification matches reality. This

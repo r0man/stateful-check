@@ -246,8 +246,9 @@
                                           :stacktrace? false
                                           :command-frequency? false}}]))
 
-(defn report-result [msg _ options results frequencies]
-  (let [result-data (:result-data results)
+(defn report-result [msg specification options results frequencies]
+  (let [results (assoc results :specification specification :options options)
+        result-data (:result-data results)
         smallest-result-data (get-in results [:shrunk :result-data])]
     (when (get-in options [:report :command-frequency?] false)
       (print "Command execution counts:")
@@ -262,13 +263,15 @@
                     :fault :true
                     :message msg
                     :expected nil,
-                    :actual (::p/error result-data)})
+                    :actual (::p/error result-data)
+                    :stateful-check results})
 
       (:pass? results)
       (t/do-report {:type :pass,
                     :message msg,
                     :expected true,
-                    :actual true})
+                    :actual true
+                    :stateful-check results})
 
       :else
       (t/do-report {:type :fail,

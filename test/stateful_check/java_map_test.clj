@@ -29,6 +29,9 @@
   (is (specification-correct? java-map-specification)))
 
 (deftest java-map-fails-concurrently
+  ;; Ensure this test always fails using a fixed seed. The pass
+  ;; when :seed is set to 0.
   (is (not (specification-correct? java-map-specification
                                    {:gen {:threads 2}
-                                    :run {:max-tries 100}}))))
+                                    :run {:max-tries 100
+                                          :seed 1}}))))

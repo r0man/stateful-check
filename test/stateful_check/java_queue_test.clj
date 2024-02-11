@@ -154,6 +154,9 @@
                                          [5 (gen/return :count)]])))})
 
 (deftest shared-queue-test
-  (is (not (specification-correct? shared-queue-specification))))
+  ;; Ensure this test always fails using a fixed seed. The pass
+  ;; when :seed is set to 0.
+  (is (not (specification-correct? shared-queue-specification {:run {:seed 1}}))))
+
 (deftest array-queue-test
   (is (specification-correct? array-queue-specification)))

@@ -6,7 +6,8 @@
             [stateful-check.core :as stateful-check]
             [stateful-check.debugger.core :as debugger]
             [stateful-check.debugger.test :as test]
-            [stateful-check.symbolic-values :as sv])
+            [stateful-check.symbolic-values :as sv]
+            [clojure.edn :as edn])
   (:import [java.util UUID]))
 
 (stest/instrument)
@@ -108,9 +109,9 @@
           (is (= (sv/->RootVar "1") (:handle env)))
           (is (= 0 (:index env)))
           (is (= {:real {:id "id--3" :value -3}
-                  :real-str "{:id \"id--3\", :value -3}"
+                  :real-str {:value -3, :id "id--3"}
                   :symbolic (sv/->RootVar "1")}
-                 (:result env)))
+                 (update (:result env) :real-str edn/read-string)))
           (is (= {:real {"id--3" {:id "id--3" :value -3}}
                   :symbolic {(get (sv/->RootVar "1") :id)
                              {:id (get (sv/->RootVar "1") :id) :value -3}}}

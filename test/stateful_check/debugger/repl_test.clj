@@ -238,8 +238,9 @@
            (:evaluation (repl/get-state :case :first :handle "5"))
            (:real (repl/get-state :case :first :handle "5"))))
     (let [{:keys [failures]} (repl/get-env :case :first :handle "5")]
-      (is (= [{:actual {:id "id--4", :value "boom"},
-               :expected {:id "id--4", :value -4},
+      (is (= [{:actual '(not (= {:id "id--4", :value -4}
+                                {:id "id--4", :value "boom"})),
+               :expected '(= (get state id) value),
                :index 0}]
              (->> failures :evaluation first :events
                   (map #(select-keys % [:actual :expected :index])))

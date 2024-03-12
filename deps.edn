@@ -1,7 +1,7 @@
 {:deps {org.clojure/clojure {:mvn/version "1.11.1"}
         org.clojure/test.check {:mvn/version "1.1.0"}}
  :aliases {:test {:extra-deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}
-                               cider/cider-nrepl {:mvn/version "0.45.0"}
+                               cider/cider-nrepl {:mvn/version "0.46.0"}
                                mx.cider/haystack {:mvn/version "0.3.3"}}
                   :extra-paths ["test"]
                   :main-opts ["-m" "cognitect.test-runner"]}}

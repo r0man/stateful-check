@@ -161,6 +161,10 @@
 (defvar-local stateful-check--current-run nil
   "The Stateful Check run of the current buffer.")
 
+(defvar stateful-check-middleware
+  (list "stateful-check.nrepl.middleware/wrap-stateful-check")
+  "The list of Stateful Check middleware vars.")
+
 ;; Stateful Check options
 
 (defun stateful-check-gen-options ()
@@ -193,9 +197,15 @@
 
 ;; NREPL operations
 
+(defun stateful-check-sync-request:add-middleware ()
+  "Add the Stateful Check NREPL middleware to the session."
+  (thread-first `("op" "add-middleware"
+                  "middleware" ,stateful-check-middleware)
+                (cider-nrepl-send-sync-request)))
+
 (defun cider-sync-request:stateful-check-analysis (id)
   "Return Stateful Check analysis by ID."
-  (cider-ensure-op-supported "stateful-check/analysis")
+  (stateful-check-ensure-op-supported "stateful-check/analysis")
   (thread-first `("op" "stateful-check/analysis"
                   "id" ,id)
                 (cider-nrepl-send-sync-request)
@@ -203,7 +213,7 @@
 
 (defun cider-sync-request:stateful-check-analyze-test (test)
   "Analyze Stateful Check TEST report."
-  (cider-ensure-op-supported "stateful-check/analyze-test")
+  (stateful-check-ensure-op-supported "stateful-check/analyze-test")
   (thread-first `("op" "stateful-check/analyze-test"
                   "test" ,test)
                 (cider-nrepl-send-sync-request)
@@ -211,7 +221,7 @@
 
 (defun cider-sync-request:stateful-check-inspect (query)
   "Inspect the Stateful Check test run object for the QUERY."
-  (cider-ensure-op-supported "stateful-check/inspect")
+  (stateful-check-ensure-op-supported "stateful-check/inspect")
   (thread-first `("op" "stateful-check/inspect"
                   "query" ,query)
                 (cider-nrepl-send-sync-request)
@@ -219,7 +229,7 @@
 
 (defun cider-sync-request:stateful-check-print (index)
   "Print the Stateful Check test run object at INDEX."
-  (cider-ensure-op-supported "stateful-check/print")
+  (stateful-check-ensure-op-supported "stateful-check/print")
   (thread-first `("op" "stateful-check/print"
                   "index" ,index)
                 (cider-nrepl-send-sync-request)
@@ -227,21 +237,21 @@
 
 (defun cider-sync-request:stateful-check-scan ()
   "Scan public vars and test reports for Stateful Check specifications."
-  (cider-ensure-op-supported "stateful-check/scan")
+  (stateful-check-ensure-op-supported "stateful-check/scan")
   (thread-first `("op" "stateful-check/scan")
                 (cider-nrepl-send-sync-request)
                 (nrepl-dict-get "stateful-check/scan")))
 
 (defun cider-sync-request:stateful-check-specifications ()
   "List all known Stateful Check specifications."
-  (cider-ensure-op-supported "stateful-check/specifications")
+  (stateful-check-ensure-op-supported "stateful-check/specifications")
   (thread-first `("op" "stateful-check/specifications")
                 (cider-nrepl-send-sync-request)
                 (nrepl-dict-get "stateful-check/specifications")))
 
 (defun cider-request:stateful-check-eval-step (run case callback)
   "Evaluate the current command for the failing CASE of RUN."
-  (cider-ensure-op-supported "stateful-check/eval-step")
+  (stateful-check-ensure-op-supported "stateful-check/eval-step")
   (thread-first `("op" "stateful-check/eval-step"
                   "run" ,run
                   "case", (or case "smallest"))
@@ -249,7 +259,7 @@
 
 (defun cider-request:stateful-check-eval-stop (run case callback)
   "Stop the evaluation of the failing CASE of RUN."
-  (cider-ensure-op-supported "stateful-check/eval-stop")
+  (stateful-check-ensure-op-supported "stateful-check/eval-stop")
   (thread-first `("op" "stateful-check/eval-stop"
                   "run" ,run
                   "case", (or case "smallest"))
@@ -257,7 +267,7 @@
 
 (defun cider-request:stateful-check-stacktrace (query callback)
   "Request the stacktrace of Stateful Check run matching QUERY and invoke CALLBACK."
-  (cider-ensure-op-supported "stateful-check/stacktrace")
+  (stateful-check-ensure-op-supported "stateful-check/stacktrace")
   (thread-first `("op" "stateful-check/stacktrace"
                   "query" ,query)
                 (cider-nrepl-send-request callback)))
@@ -271,11 +281,16 @@
 
 (defun cider-request:stateful-check-run (specification options callback)
   "Run the Stateful Check SPECIFICATION using OPTIONS and invoke CALLBACK."
-  (cider-ensure-op-supported "stateful-check/run")
+  (stateful-check-ensure-op-supported "stateful-check/run")
   (thread-first `("op" "stateful-check/run"
                   "specification" ,(stateful-check--specification-id specification)
                   "options" ,options)
                 (cider-nrepl-send-request callback)))
+
+(defun stateful-check-ensure-op-supported (operation)
+  "Ensure that the Stateful Check OPERATION is supported."
+  (unless (stateful-check--operation-supported-p operation)
+    (stateful-check--load-middleware)))
 
 ;; Misc
 
@@ -301,6 +316,25 @@
   (when-let ((ns (get-text-property (point) 'ns))
              (var (get-text-property (point) 'var)))
     (format "%s/%s" ns var)))
+
+(defun stateful-check--operation-supported-p (operation)
+  "Return non-nil if the NREPL OPERATION is supported, otherwise nil."
+  (let ((ops (nrepl-dict-get (cider-nrepl-send-sync-request '("op" "describe")) "ops")))
+    (nrepl-dict-get ops operation)))
+
+(defun stateful-check--load-middleware ()
+  "Load the Stateful Check NREPL middleware and return the unresolved middleware."
+  (let ((response (stateful-check-sync-request:add-middleware)))
+    (nrepl-dbind-response response (unresolved-middleware)
+      (when unresolved-middleware
+        (user-error "Failed to load Stateful Check NREPL middleware")))))
+
+(defun stateful-check--ensure-middleware ()
+  "Ensure the Stateful Check NREPL middleware has been added to the session."
+  (unless (stateful-check--operation-supported-p "stateful-check/run")
+    (message "Loading Stateful Check NREPL middleware ...")
+    (stateful-check--load-middleware)
+    (message "Stateful Check NREPL middleware loaded.")))
 
 ;; Specification
 

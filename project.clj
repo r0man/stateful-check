@@ -3,7 +3,7 @@
   :url "https://github.com/czan/stateful-check"
   :license {:name "MIT"
             :url "https://opensource.org/licenses/MIT"}
-  :dependencies [[cider/cider-nrepl "0.46.0"] ;; How to make this provided? lein test fails
+  :dependencies [[cider/cider-nrepl "0.51.1"] ;; How to make this provided? lein test fails
                  [mx.cider/haystack "0.3.3"] ;; This unfortunatly gets renamed in cider
                  [org.clojure/clojure "1.11.1"]
                  [org.clojure/test.check "1.1.0"]]

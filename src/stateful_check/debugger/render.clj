@@ -2,6 +2,7 @@
   (:require [cider.nrepl.middleware.test.extensions :refer [diffs-result]]
             [clojure.pprint :as pp]
             [orchard.inspect :as inspect]
+            [orchard.print :as orchard.print]
             [stateful-check.symbolic-values :as sv]))
 
 (defn- render-value
@@ -13,8 +14,8 @@
     (instance? clojure.lang.Atom value)
     (pr-str value) ;; Atom's aren't printed nicely by orchard
     :else
-    (binding [inspect/*max-atom-length* 50]
-      (inspect/inspect-value value))))
+    (binding [orchard.print/*max-atom-length* 50]
+      (orchard.print/print-str value))))
 
 (defn- render-error
   "Render the given `error` as a string."

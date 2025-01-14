@@ -11,6 +11,7 @@
             [nrepl.misc :refer [response-for]]
             [nrepl.transport :as t]
             [orchard.inspect :as inspect]
+            [orchard.print :as orchard.print]
             [stateful-check.core :as stateful-check]
             [stateful-check.debugger.core :as debugger]
             [stateful-check.debugger.render :as render]
@@ -34,8 +35,9 @@
   []
   (debugger/debugger
    {:render (fn [value]
-              (binding [inspect/*max-atom-length* 50]
-                (inspect/inspect-value value)))
+              (binding [orchard.print/*max-atom-length* 50]
+                ;; (inspect/inspect-value value)
+                (orchard.print/print-str value)))
     :test {:report current-report}}))
 
 (defn- debugger

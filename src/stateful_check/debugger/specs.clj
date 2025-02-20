@@ -115,6 +115,8 @@
 (s/def :stateful-check.debugger/last-runs
   (s/coll-of :stateful-check.debugger.run/id :kind vector?))
 
+(s/def :stateful-check.debugger/max-last-runs pos-int?)
+
 (s/def :stateful-check.debugger/runs
   (s/map-of :stateful-check.debugger.run/id
             :stateful-check.debugger/run))
@@ -125,5 +127,6 @@
 
 (s/def :stateful-check/debugger
   (s/keys :req-un [:stateful-check.debugger/last-runs
-                   :stateful-check.debugger/specifications
-                   :stateful-check.debugger/runs]))
+                   :stateful-check.debugger/max-last-runs
+                   :stateful-check.debugger/runs
+                   :stateful-check.debugger/specifications]))

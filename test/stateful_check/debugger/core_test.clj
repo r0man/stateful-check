@@ -85,6 +85,21 @@
           run (debugger/last-run debugger)]
       (is (s/valid? :stateful-check/run run)))))
 
+(deftest test-gc-last-runs
+  (let [debugger (debugger/scan (assoc debugger :max-last-runs 2))
+        debugger-1 (debugger/run-specification debugger example-id)]
+    (is (= 1 (count (:last-runs debugger-1))))
+    (let [debugger-2 (debugger/run-specification debugger-1 example-id)]
+      (is (= 2 (count (:last-runs debugger-2))))
+      (is (= (last (:last-runs debugger-1))
+             (nth (:last-runs debugger-2) 0)))
+      (is (contains? (:runs debugger-2) (last (:last-runs debugger-1))))
+      (let [debugger-3 (debugger/run-specification debugger-2 example-id)]
+        (is (= 2 (count (:last-runs debugger-2))))
+        (is (= (last (:last-runs debugger-2))
+               (nth (:last-runs debugger-3) 0)))
+        (is (not (contains? (:runs debugger-3) (last (:last-runs debugger-1)))))))))
+
 (deftest test-print
   (let [debugger (debugger/scan debugger)
         debugger (debugger/run-specification debugger example-id)

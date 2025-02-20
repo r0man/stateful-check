@@ -1,6 +1,8 @@
 (ns stateful-check.debugger.core
   (:refer-clojure :exclude [print])
-  (:require [clojure.spec.alpha :as s]
+  (:require [clojure.set :as set]
+            [clojure.spec.alpha :as s]
+            [clojure.string :as str]
             [stateful-check.core :as stateful-check]
             [stateful-check.debugger.analyzer :as analyzer]
             [stateful-check.debugger.error :as error]
@@ -8,15 +10,15 @@
             [stateful-check.debugger.specs]
             [stateful-check.debugger.test-report :as test-report]
             [stateful-check.specs]
-            [stateful-check.symbolic-values :as sv]
-            [clojure.string :as str])
+            [stateful-check.symbolic-values :as sv])
   (:import [java.util UUID]
            [stateful_check.symbolic_values RootVar]))
 
 (defn debugger
   "Return a Stateful Check debugger."
-  [& [{:keys [test]}]]
-  {:last-runs []
+  [& [{:keys [max-last-runs test]}]]
+  {:max-last-runs (or max-last-runs 5)
+   :last-runs []
    :runs {}
    :specifications {}
    :test (cond-> {}
@@ -151,6 +153,18 @@
   [debugger]
   (get-in debugger [:runs (last (:last-runs debugger))]))
 
+(defn- gc-last-runs
+  "Garbage collect the last runs from the `debugger`."
+  [{:keys [last-runs max-last-runs runs] :as debugger}]
+  (let [last-runs' (vec (take-last max-last-runs last-runs))]
+    (assoc debugger
+           :last-runs last-runs'
+           :runs (reduce #(dissoc %1 %2)
+                         runs
+                         (set/difference
+                          (set last-runs)
+                          (set last-runs'))))))
+
 (defn- add-specification
   "Add the Stateful Check `specification` to the debugger."
   [debugger {:keys [id] :as specification}]
@@ -175,7 +189,8 @@
   [debugger run]
   (let [results (analyzer/analyze-run run)]
     (-> (add-run debugger results)
-        (update :last-runs conj (:id results)))))
+        (update :last-runs conj (:id results))
+        (gc-last-runs))))
 
 (defn analyze-test-run
   "Analyze the Clojure Test `event`."
@@ -184,7 +199,8 @@
     (-> (remove-test-run debugger ns var)
         (add-specification specification)
         (add-run results)
-        (update :last-runs conj (:id results)))))
+        (update :last-runs conj (:id results))
+        (gc-last-runs))))
 
 (defn test-report
   "Return the test report of the `debugger`."

@@ -693,26 +693,31 @@
   "Render the Stateful Check generation OPTIONS."
   (nrepl-dbind-response options (max-length max-size threads)
     (cider-insert "  Generation: " 'bold t)
-    (insert (format "    Max Length ......... %s\n" max-length))
-    (insert (format "    Max Size ........... %s\n" max-size))
-    (insert (format "    Threads ............ %s\n" threads))))
+    (insert (format "    Max Length ......... %s\n" (or max-length stateful-check-gen-max-length)))
+    (insert (format "    Max Size ........... %s\n" (or max-size stateful-check-gen-max-size)))
+    (insert (format "    Threads ............ %s\n" (or threads stateful-check-gen-threads)))))
+
+(defun stateful-check--render-boolean-option (value)
+  "Render the Stateful Check boolean options VALUE."
+  (if value "yes" "no"))
 
 (defun stateful-check--render-run-options (run options)
   "Render the Stateful Check OPTIONS for RUN."
   (nrepl-dbind-response options (assume-immutable-results max-tries num-tests seed timeout-ms)
-    (cider-insert "  Run: " 'bold t)
-    (insert (format "    Immutable Results .. %s\n" assume-immutable-results))
-    (insert (format "    Max Tries .......... %s\n" max-tries))
-    (insert (format "    Num Tests .......... %s\n" num-tests))
-    (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed)))
-    (insert (format "    Timeout (ms) ....... %s\n" timeout-ms))))
+    (let ((assume-immutable-results (or assume-immutable-results stateful-check-run-assume-immutable-results-p)))
+      (cider-insert "  Run: " 'bold t)
+      (insert (format "    Immutable Results .. %s\n" (stateful-check--render-boolean-option assume-immutable-results)))
+      (insert (format "    Max Tries .......... %s\n" (or max-tries stateful-check-run-max-tries)))
+      (insert (format "    Num Tests .......... %s\n" (or num-tests stateful-check-run-num-tests)))
+      (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed)))
+      (insert (format "    Timeout (ms) ....... %s\n" (or timeout-ms stateful-check-run-timeout-ms))))))
 
 (defun stateful-check--render-report-options (options)
   "Render the Stateful Check report OPTIONS."
   (nrepl-dbind-response options (command-frequency? first-case?)
     (cider-insert "  Report: " 'bold t)
-    (insert (format "    Command Frequency .. %s\n" command-frequency?))
-    (insert (format "    First Case ......... %s\n" first-case?))))
+    (insert (format "    Command Frequency .. %s\n" (stateful-check--render-boolean-option command-frequency?)))
+    (insert (format "    First Case ......... %s\n" (stateful-check--render-boolean-option first-case?)))))
 
 (defun stateful-check--render-options (failed-run options)
   "Render the Stateful Check OPTIONS."

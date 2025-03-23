@@ -150,14 +150,10 @@
       (assoc :eval? (evaluating? result-data))
       (assoc :executions (render-executions result-data))))
 
-(defn- render-quickcheck-results
-  "Render the test.check result/report data structure."
-  [results]
-  (-> (select-keys results [:failed-after-ms :failing-size :num-tests :seed :shrunk :result-data :pass? :time-elapsed-ms])
-      (update :shrunk select-keys [:depth :result-data :time-shrinking-ms :total-nodes-visited])))
-
 (defn render-run [analysis]
-  (-> (render-quickcheck-results analysis)
-      (merge (select-keys analysis [:id :frequencies :specification :options]))
+  (-> (select-keys analysis [:id :frequencies :specification :options ;; Stateful Check
+                             :failed-after-ms :failing-size :num-tests :seed :shrunk :result-data :pass? :time-elapsed-ms])
       (update-in [:result-data] render-result-data)
-      (update-in [:shrunk :result-data] render-result-data)))
+      (update-in [:shrunk :result-data] render-result-data)
+      (update-in [:shrunk] select-keys [:depth :result-data :time-shrinking-ms :total-nodes-visited])
+      (update-in [:specification :test] dissoc :message)))

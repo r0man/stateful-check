@@ -697,14 +697,14 @@
     (insert (format "    Max Size ........... %s\n" max-size))
     (insert (format "    Threads ............ %s\n" threads))))
 
-(defun stateful-check--render-run-options (options)
-  "Render the Stateful Check run OPTIONS."
+(defun stateful-check--render-run-options (run options)
+  "Render the Stateful Check OPTIONS for RUN."
   (nrepl-dbind-response options (assume-immutable-results max-tries num-tests seed timeout-ms)
     (cider-insert "  Run: " 'bold t)
     (insert (format "    Immutable Results .. %s\n" assume-immutable-results))
     (insert (format "    Max Tries .......... %s\n" max-tries))
     (insert (format "    Num Tests .......... %s\n" num-tests))
-    (insert (format "    Seed ............... %s\n" seed))
+    (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed)))
     (insert (format "    Timeout (ms) ....... %s\n" timeout-ms))))
 
 (defun stateful-check--render-report-options (options)
@@ -714,13 +714,13 @@
     (insert (format "    Command Frequency .. %s\n" command-frequency?))
     (insert (format "    First Case ......... %s\n" first-case?))))
 
-(defun stateful-check--render-options (options)
+(defun stateful-check--render-options (failed-run options)
   "Render the Stateful Check OPTIONS."
   (nrepl-dbind-response options (gen report run)
     (cider-propertize-region (list 'stateful-check-options options)
       (cider-insert "Options: " 'bold t)
       (stateful-check--render-generation-options gen)
-      (stateful-check--render-run-options run)
+      (stateful-check--render-run-options failed-run run)
       (stateful-check--render-report-options report)
       (insert "\n"))))
 
@@ -732,7 +732,7 @@
         (when-let (seed (nrepl-dict-get-in run '("seed")))
           (insert "\n")
           (cider-insert "Seed: " 'bold)
-          (insert (format "%s\n"seed))))
+          (insert (format "%s\n" seed))))
       (unless (zerop (length (nrepl-dict-get-in run'("result-data" "executions" "parallel"))))
         (insert "\n")
         (cider-insert "Note: " 'bold)
@@ -742,7 +742,7 @@
                       'font-lock-comment-face))
       (insert "\n")
       (when stateful-check-render-options
-        (stateful-check--render-options options)))))
+        (stateful-check--render-options run options)))))
 
 (defun stateful-check--success-message (run)
   "Return the Stateful Check success message for RUN."

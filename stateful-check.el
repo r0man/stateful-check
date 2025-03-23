@@ -691,7 +691,12 @@
   "Render the Stateful Check generation OPTIONS."
   (nrepl-dbind-response options (max-length max-size threads)
     (cider-insert "  🧞 Generation\n" 'bold t)
-    (insert (format "   Max Length ......... %s\n" (or max-length stateful-check-gen-max-length)))
+    (insert (format "   Max Length ......... %s\n"
+                    (if (nrepl-dict-p max-length)
+                        (format "%s sequential, %s parallel commands"
+                                (nrepl-dict-get max-length "sequential")
+                                (nrepl-dict-get max-length "parallel"))
+                      (or max-length stateful-check-gen-max-length))))
     (insert (format "   Max Size ........... %s\n" (or max-size stateful-check-gen-max-size)))
     (insert (format "   Threads ............ %s\n" (or threads stateful-check-gen-threads)))))
 

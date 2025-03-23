@@ -851,7 +851,7 @@
 (defun stateful-check-inspect (query)
   "Inspect the Stateful Check run object described by QUERY."
   (when-let (value (cider-sync-request:stateful-check-inspect query))
-    (cider-inspector--render-value value)))
+    (cider-inspector--render-value value :next-inspectable)))
 
 (defun stateful-check-value-at-point ()
   "Return the Stateful Check test run value at point."

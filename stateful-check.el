@@ -699,7 +699,7 @@
 
 (defun stateful-check--render-boolean-option (value)
   "Render the Stateful Check boolean options VALUE."
-  (if value "yes" "no"))
+  (if (equal "true" value) "yes" "no"))
 
 (defun stateful-check--render-run-options (run options)
   "Render the Stateful Check OPTIONS for RUN."

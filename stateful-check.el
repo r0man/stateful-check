@@ -720,7 +720,7 @@
     (insert (format "    First Case ......... %s\n" (stateful-check--render-boolean-option first-case?)))))
 
 (defun stateful-check--render-options (failed-run options)
-  "Render the Stateful Check OPTIONS."
+  "Render the Stateful Check OPTIONS for the FAILED-RUN."
   (nrepl-dbind-response options (gen report run)
     (cider-propertize-region (list 'stateful-check-options options)
       (cider-insert "Options: " 'bold t)

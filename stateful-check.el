@@ -709,7 +709,7 @@
       (insert (format "    Immutable Results .. %s\n" (stateful-check--render-boolean-option assume-immutable-results)))
       (insert (format "    Max Tries .......... %s\n" (or max-tries stateful-check-run-max-tries)))
       (insert (format "    Num Tests .......... %s\n" (or num-tests stateful-check-run-num-tests)))
-      (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed)))
+      (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed stateful-check-run-seed)))
       (insert (format "    Timeout (ms) ....... %s\n" (or timeout-ms stateful-check-run-timeout-ms))))))
 
 (defun stateful-check--render-report-options (options)

@@ -631,8 +631,7 @@
 (defun stateful-check--render-sequential-executions (failing-case executions)
   "Render the sequential Stateful Check EXECUTIONS of the FAILING-CASE."
   (cider-propertize-region (list 'stateful-check-sequential-executions executions)
-    (cider-insert "\n  Sequential prefix:" 'bold t)
-    (cider-insert "  ---------------------------\n" 'font-lock-comment-face)
+    (cider-insert "\n\n   ⏩ Sequential prefix\n" 'bold t)
     (seq-doseq (execution executions)
       (stateful-check--render-execution failing-case execution))))
 
@@ -641,8 +640,7 @@
   (cider-propertize-region (list 'stateful-check-parallel-executions executions)
     (seq-map-indexed (lambda (executions index)
                        (let ((thread (stateful-check--thread-name index)))
-                         (cider-insert (format "  Thread %s:" thread) 'bold t)
-                         (cider-insert "  ---------------------------\n" 'font-lock-comment-face)
+                         (cider-insert (format "   🔀 Thread %s\n" thread) 'bold t)
                          (seq-doseq (execution executions)
                            (stateful-check--render-execution failing-case execution))
                          (insert "\n")))
@@ -674,9 +672,9 @@
   (let* ((failing-case (stateful-check--run-first-case run))
          (executions (nrepl-dict-get failing-case "executions")))
     (cider-propertize-region (list 'stateful-check-first-case executions)
-      (cider-insert "First failing test case" 'bold)
+      (cider-insert "💣 First failing test case\n" 'bold)
+      (cider-insert "--------------------------------------------------------------------------------" 'font-lock-comment-face)
       (stateful-check--render-eval-banner failing-case)
-      (cider-insert "\n-----------------------\n" 'font-lock-comment-face)
       (stateful-check--render-executions failing-case executions))))
 
 (defun stateful-check--render-smallest (run)
@@ -684,18 +682,18 @@
   (let* ((failing-case (stateful-check--run-smallest-case run))
          (executions (nrepl-dict-get failing-case "executions")))
     (cider-propertize-region (list 'stateful-check-smallest-case executions)
-      (cider-insert "Smallest case after shrinking" 'bold)
+      (cider-insert "💣 Smallest test case after shrinking\n" 'bold)
+      (cider-insert "--------------------------------------------------------------------------------" 'font-lock-comment-face)
       (stateful-check--render-eval-banner failing-case)
-      (cider-insert "\n-----------------------------\n")
       (stateful-check--render-executions failing-case executions))))
 
 (defun stateful-check--render-generation-options (options)
   "Render the Stateful Check generation OPTIONS."
   (nrepl-dbind-response options (max-length max-size threads)
-    (cider-insert "  Generation: " 'bold t)
-    (insert (format "    Max Length ......... %s\n" (or max-length stateful-check-gen-max-length)))
-    (insert (format "    Max Size ........... %s\n" (or max-size stateful-check-gen-max-size)))
-    (insert (format "    Threads ............ %s\n" (or threads stateful-check-gen-threads)))))
+    (cider-insert "  🧞 Generation\n" 'bold t)
+    (insert (format "   Max Length ......... %s\n" (or max-length stateful-check-gen-max-length)))
+    (insert (format "   Max Size ........... %s\n" (or max-size stateful-check-gen-max-size)))
+    (insert (format "   Threads ............ %s\n" (or threads stateful-check-gen-threads)))))
 
 (defun stateful-check--render-boolean-option (value)
   "Render the Stateful Check boolean options VALUE."
@@ -705,29 +703,31 @@
   "Render the Stateful Check OPTIONS for RUN."
   (nrepl-dbind-response options (assume-immutable-results max-tries num-tests seed timeout-ms)
     (let ((assume-immutable-results (or assume-immutable-results stateful-check-run-assume-immutable-results-p)))
-      (cider-insert "  Run: " 'bold t)
-      (insert (format "    Immutable Results .. %s\n" (stateful-check--render-boolean-option assume-immutable-results)))
-      (insert (format "    Max Tries .......... %s\n" (or max-tries stateful-check-run-max-tries)))
-      (insert (format "    Num Tests .......... %s\n" (or num-tests stateful-check-run-num-tests)))
-      (insert (format "    Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed stateful-check-run-seed)))
-      (insert (format "    Timeout (ms) ....... %s\n" (or timeout-ms stateful-check-run-timeout-ms))))))
+      (cider-insert "  👟 Run\n" 'bold t)
+      (insert (format "   Immutable Results .. %s\n" (stateful-check--render-boolean-option assume-immutable-results)))
+      (insert (format "   Max Tries .......... %s\n" (or max-tries stateful-check-run-max-tries)))
+      (insert (format "   Num Tests .......... %s\n" (or num-tests stateful-check-run-num-tests)))
+      (insert (format "   Seed ............... %s\n" (or (nrepl-dict-get run "seed") seed stateful-check-run-seed)))
+      (insert (format "   Timeout (ms) ....... %s\n" (or timeout-ms stateful-check-run-timeout-ms))))))
 
 (defun stateful-check--render-report-options (options)
   "Render the Stateful Check report OPTIONS."
   (nrepl-dbind-response options (command-frequency? first-case?)
-    (cider-insert "  Report: " 'bold t)
-    (insert (format "    Command Frequency .. %s\n" (stateful-check--render-boolean-option command-frequency?)))
-    (insert (format "    First Case ......... %s\n" (stateful-check--render-boolean-option first-case?)))))
+    (cider-insert "  📰 Report\n" 'bold t)
+    (insert (format "   Command Frequency .. %s\n" (stateful-check--render-boolean-option command-frequency?)))
+    (insert (format "   First Case ......... %s\n" (stateful-check--render-boolean-option first-case?)))))
 
 (defun stateful-check--render-options (failed-run options)
   "Render the Stateful Check OPTIONS for the FAILED-RUN."
   (nrepl-dbind-response options (gen report run)
     (cider-propertize-region (list 'stateful-check-options options)
-      (cider-insert "Options: " 'bold t)
+      (cider-insert "🪛 Run Options" 'bold t)
+      (cider-insert "--------------------------------------------------------------------------------\n\n" 'font-lock-comment-face)
       (stateful-check--render-generation-options gen)
+      (insert "\n")
       (stateful-check--render-run-options failed-run run)
-      (stateful-check--render-report-options report)
-      (insert "\n"))))
+      (insert "\n")
+      (stateful-check--render-report-options report))))
 
 (defun stateful-check--render-footer (run)
   "Render the Stateful Check RUN footer."
@@ -788,6 +788,7 @@
   "Insert the Stateful Check RUN into current buffer."
   (cider-propertize-region (list 'stateful-check-run run)
     (unless (stateful-check--run-pass-p run)
+      (insert "\n")
       (stateful-check--render-smallest run)
       (when stateful-check-report-first-case-p
         (insert "\n")

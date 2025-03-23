@@ -726,7 +726,7 @@
   "Render the Stateful Check OPTIONS for the FAILED-RUN."
   (nrepl-dbind-response options (gen report run)
     (cider-propertize-region (list 'stateful-check-options options)
-      (cider-insert "🪛 Run Options" 'bold t)
+      (cider-insert "🪛 Test Runner Options" 'bold t)
       (cider-insert "--------------------------------------------------------------------------------\n\n" 'font-lock-comment-face)
       (stateful-check--render-generation-options gen)
       (insert "\n")

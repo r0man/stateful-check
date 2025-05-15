@@ -14,9 +14,7 @@
     (instance? clojure.lang.Atom value)
     (pr-str value) ;; Atom's aren't printed nicely by orchard
     :else
-    (binding [orchard.print/*max-atom-length* 100
-              orchard.print/*max-total-length* 2000]
-      (orchard.print/print-str value))))
+    (orchard.print/print-str value)))
 
 (defn- render-error
   "Render the given `error` as a string."

@@ -35,9 +35,8 @@
   []
   (debugger/debugger
    {:render (fn [value]
-              (binding [orchard.print/*max-atom-length* 50]
-                ;; (inspect/inspect-value value)
-                (orchard.print/print-str value)))
+              ;; (inspect/inspect-value value)
+              (orchard.print/print-str value))
     :test {:report current-report}}))
 
 (defn- debugger
@@ -316,6 +315,11 @@
      :returns {"status" "\"done\", or \"stateful-check/no-error\" no error was found."}}}})
 
 (defn wrap-stateful-check [handler]
-  (fn [msg] (handle-message handler msg)))
+  (fn [msg]
+    (binding [*print-length* 10
+              *print-level* 10
+              orchard.print/*max-atom-length* 100
+              orchard.print/*max-total-length* 2000]
+      (handle-message handler msg))))
 
 (middleware/set-descriptor! #'wrap-stateful-check descriptor)

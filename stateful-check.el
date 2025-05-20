@@ -542,6 +542,10 @@
                   'cider-value-idx result
                   'mouse-face 'highlight)
           (cond
+           ((and eval-p evaluation)
+            (insert (cider-font-lock-as-clojure evaluation)))
+           ((and eval-p real)
+            (insert (cider-propertize real 'font-lock-comment-face)))
            ((and (not immutable-results-p) real-mutated)
             (insert (cider-font-lock-as-clojure real-str))
             (insert "\n")
@@ -551,10 +555,6 @@
              'font-lock-type-face))
            ((and real-mutated? real-str)
             (insert (cider-font-lock-as-clojure real-str)))
-           ((and eval-p evaluation)
-            (insert (cider-font-lock-as-clojure evaluation)))
-           ((and eval-p real)
-            (insert (cider-propertize real 'font-lock-comment-face)))
            (real (insert (cider-font-lock-as-clojure real)))))))))
 
 (defun stateful-check--render-error-button (exception)

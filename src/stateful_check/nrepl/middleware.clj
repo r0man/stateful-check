@@ -19,6 +19,13 @@
   (:import [java.io StringWriter]
            [java.util UUID]))
 
+(defmacro with-print-limits [& body]
+  `(binding [*print-length* 10
+             *print-level* 10
+             orchard.print/*max-atom-length* 100
+             orchard.print/*max-total-length* 2000]
+     ~@body))
+
 (defn- criteria
   "Make the search criteria map from the NREPL msg."
   [{:keys [analysis ns var]}]
@@ -116,13 +123,14 @@
     (exec id
           (fn []
             (with-bindings (assoc @session #'ie/*msg* msg)
-              (if-let [specification (debugger/specification (debugger msg) specification)]
-                (t/send transport (response-for msg :stateful-check/run
-                                                (-> (swap-debugger! msg debugger/run-specification (:id specification) (parse-options options))
-                                                    (debugger/last-run)
-                                                    (render/render-run)
-                                                    (transform-value))))
-                (t/send transport (response-for msg :status :stateful-check/specification-not-found)))))
+              (with-print-limits
+                (if-let [specification (debugger/specification (debugger msg) specification)]
+                  (t/send transport (response-for msg :stateful-check/run
+                                                  (-> (swap-debugger! msg debugger/run-specification (:id specification) (parse-options options))
+                                                      (debugger/last-run)
+                                                      (render/render-run)
+                                                      (transform-value))))
+                  (t/send transport (response-for msg :status :stateful-check/specification-not-found))))))
           (fn []
             (t/send transport (response-for msg :status :done))))))
 
@@ -154,20 +162,21 @@
               ;; this.
               (binding [*out* (java.io.StringWriter.)
                         *err* (java.io.StringWriter.)]
-                (try
-                  (let [result (-> (swap-debugger! msg debugger/eval-step run case)
-                                   (debugger/get-run run)
-                                   (render/render-run)
-                                   (transform-value))
-                        err (str *err*)
-                        out (str *out*)]
-                    (when (pos? (count out))
-                      (t/send transport (response-for msg :out out)))
-                    (when (pos? (count err))
-                      (t/send transport (response-for msg :err err)))
-                    (t/send transport (response-for msg :stateful-check/eval-step result)))
-                  (catch Throwable e
-                    (.printStackTrace e))))))
+                (with-print-limits
+                  (try
+                    (let [result (-> (swap-debugger! msg debugger/eval-step run case)
+                                     (debugger/get-run run)
+                                     (render/render-run)
+                                     (transform-value))
+                          err (str *err*)
+                          out (str *out*)]
+                      (when (pos? (count out))
+                        (t/send transport (response-for msg :out out)))
+                      (when (pos? (count err))
+                        (t/send transport (response-for msg :err err)))
+                      (t/send transport (response-for msg :stateful-check/eval-step result)))
+                    (catch Throwable e
+                      (.printStackTrace e)))))))
           (fn []
             (t/send transport (response-for msg :status :done))))))
 
@@ -177,26 +186,27 @@
   (let [{:keys [exec]} (meta session)]
     (exec id
           (fn []
-            (with-bindings (assoc @session #'ie/*msg* msg)
-              ;; TODO: Using *out* and *err* from the session bindings hangs the
-              ;; REPL as soon as something is printed. Find a better way to do
-              ;; this.
-              (binding [*out* (java.io.StringWriter.)
-                        *err* (java.io.StringWriter.)]
-                (try
-                  (let [result (-> (swap-debugger! msg debugger/eval-stop run case)
-                                   (debugger/get-run run)
-                                   (render/render-run)
-                                   (transform-value))
-                        err (str *err*)
-                        out (str *out*)]
-                    (when (pos? (count out))
-                      (t/send transport (response-for msg :out out)))
-                    (when (pos? (count err))
-                      (t/send transport (response-for msg :err err)))
-                    (t/send transport (response-for msg :stateful-check/eval-stop result)))
-                  (catch Throwable e
-                    (.printStackTrace e))))))
+            (with-print-limits
+              (with-bindings (assoc @session #'ie/*msg* msg)
+                ;; TODO: Using *out* and *err* from the session bindings hangs the
+                ;; REPL as soon as something is printed. Find a better way to do
+                ;; this.
+                (binding [*out* (java.io.StringWriter.)
+                          *err* (java.io.StringWriter.)]
+                  (try
+                    (let [result (-> (swap-debugger! msg debugger/eval-stop run case)
+                                     (debugger/get-run run)
+                                     (render/render-run)
+                                     (transform-value))
+                          err (str *err*)
+                          out (str *out*)]
+                      (when (pos? (count out))
+                        (t/send transport (response-for msg :out out)))
+                      (when (pos? (count err))
+                        (t/send transport (response-for msg :err err)))
+                      (t/send transport (response-for msg :stateful-check/eval-stop result)))
+                    (catch Throwable e
+                      (.printStackTrace e)))))))
           (fn []
             (t/send transport (response-for msg :status :done))))))
 
@@ -234,14 +244,15 @@
     "stateful-check/eval-step" (stateful-check-eval-step-reply msg)
     "stateful-check/eval-stop" (stateful-check-eval-stop-reply msg)
     "stateful-check/run" (stateful-check-run-reply msg)
-    (error-handling/with-safe-transport handler msg
-      "stateful-check/analysis" stateful-check-analysis-reply
-      "stateful-check/analyze-test" stateful-check-analyze-test-reply
-      "stateful-check/inspect" stateful-check-inspect-reply
-      "stateful-check/print" stateful-check-print-reply
-      "stateful-check/scan" stateful-check-scan-reply
-      "stateful-check/specifications" stateful-check-specifications-reply
-      "stateful-check/stacktrace" stateful-check-stacktrace-reply)))
+    (with-print-limits
+      (error-handling/with-safe-transport handler msg
+        "stateful-check/analysis" stateful-check-analysis-reply
+        "stateful-check/analyze-test" stateful-check-analyze-test-reply
+        "stateful-check/inspect" stateful-check-inspect-reply
+        "stateful-check/print" stateful-check-print-reply
+        "stateful-check/scan" stateful-check-scan-reply
+        "stateful-check/specifications" stateful-check-specifications-reply
+        "stateful-check/stacktrace" stateful-check-stacktrace-reply))))
 
 (def ^:private descriptor
   {:doc "Stateful Check debugger"
@@ -316,10 +327,6 @@
 
 (defn wrap-stateful-check [handler]
   (fn [msg]
-    (binding [*print-length* 10
-              *print-level* 10
-              orchard.print/*max-atom-length* 100
-              orchard.print/*max-total-length* 2000]
-      (handle-message handler msg))))
+    (handle-message handler msg)))
 
 (middleware/set-descriptor! #'wrap-stateful-check descriptor)
